@@ -77,6 +77,7 @@ async def test_collision_selects_one_speaker(tmp_path):
         arbitration = next(e for e in session.events if e["type"] == "arbitration")
         assert len(arbitration["data"]["candidates"]) == 3
         assert sum(a.state == State.SPEAKING for a in session.agents) == 1
+        await until(lambda: provider.open_streams == 1)
         assert provider.open_streams == 1
     finally:
         await session.end()
