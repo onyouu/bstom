@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bstom · 자유로운 생각의 테이블</title><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
+<body>
+<header><a href="/" class="brand">bstom<span>생각은 대화 사이에서</span></a><span class="pill">EXPERIMENTAL MVP</span></header>
+<main>
+<section class="intro"><p class="eyebrow">A TABLE FOR WANDERING MINDS</p><h1>어디로 샐지 모르는<br>대화를 시작해 볼까요.</h1><p>나루, 솔, 미오와 편하게 수다를 나눠요. 떠오르는 말이 있으면 언제든 끼어들어도 돼요.</p></section>
+<form id="startForm" class="start"><label for="topic">오늘 테이블에 올릴 주제</label><div class="startrow"><input id="topic" placeholder="예: 생명과학으로 뭔가 재밌는 걸 해보고 싶어" maxlength="500" required><select id="mode" aria-label="대화 모드"><option value="mock">Mock · 가짜 응답 테스트</option><option value="compatible">실제 AI · Groq</option></select><button id="startButton">테이블 열기</button></div><p id="configText" class="hint">설정을 불러오는 중…</p></form>
+<p id="notice" role="status" aria-live="polite"></p>
+<section id="workspace" hidden>
+<div class="sessionbar"><div><strong id="sessionTopic"></strong><span id="sessionStatus" class="pill"></span></div><div class="controls"><button id="pauseButton" class="secondary">잠깐 쉬기</button><button id="endButton" class="secondary">대화 마치기</button><button id="exportButton" class="secondary">기록 저장</button></div></div>
+<div id="agents" class="agents"></div>
+<div class="columns"><section class="conversation"><div class="sectiontitle">테이블의 대화 <span id="connection">연결 중</span></div><div id="messages" class="messages" role="log" aria-label="대화 기록" aria-live="off"></div><div id="silence" class="silence" hidden>잠깐, 각자 생각을 굴리는 중이에요…</div><form id="messageForm" class="composer"><label for="userText" class="sr-only">내 발언</label><textarea id="userText" maxlength="2000" rows="2" placeholder="질문이 아니어도 괜찮아요. 지금 떠오른 말 한마디." required></textarea><button id="sendButton">끼어들기 ↗</button></form><p class="hint">Enter로 보내기 · Shift+Enter로 줄바꿈 · 쉬는 동안에도 메시지를 남길 수 있어요</p></section>
+<aside><details open><summary>엔진 이벤트 <span id="callCount"></span></summary><div id="eventLog" class="eventlog"></div></details><p class="hint">생각 · 발언 의지 · 중재 점수 · 중단 · 정적을 확인하는 디버그 화면입니다.</p></aside></div>
+</section>
+<section class="history"><h2>이전 테이블</h2><div id="historyList"></div></section>
+<footer>정답이나 결론을 만들기보다, 내 생각이 시작될 틈을 만들기 위한 실험.</footer>
+</main></body></html>
