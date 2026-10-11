@@ -53,8 +53,8 @@ function eventReceived(event) {
   if(['agent_speaking','user_spoke','speech_chunk','agent_finished','agent_interrupted'].includes(event.type))renderMessages();
   if(event.type==='silence_started')current.silent=true;
   if(event.type==='silence_ended')current.silent=false;
-  if(event.type==='session_paused')current.status='paused';
-  if(event.type==='session_resumed')current.status='running';
+  if(event.type==='session_paused'){current.status='paused';notice();}
+  if(event.type==='session_resumed'){current.status='running';notice();}
   if(event.type==='provider_error')notice(`AI 연결 상태: ${data.code}. 잠시 후 다시 시도합니다.`);
   if(event.type==='api_wait')notice(`무료 API 한도를 지키기 위해 약 ${Math.ceil(data.seconds)}초 기다리는 중이에요. 내 발언은 바로 남길 수 있어요.`);
   if(event.type==='speech_chunk')notice();

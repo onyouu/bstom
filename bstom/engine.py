@@ -206,7 +206,9 @@ class Session:
                     self.emit("arbitration", chosen.agent.id,
                               candidates=[{"agent_id": r.agent.id, "score": round(self.score(r), 3)} for r in candidates])
                     self.begin_speech(chosen)
-            elif all(agent.state in (State.LISTENING, State.IDLE, State.INTERRUPTED) for agent in self.agents):
+            elif all(agent.state in (State.LISTENING, State.IDLE, State.INTERRUPTED)
+                     and agent.desire < 0.5 and agent.observed_revision == self.revision
+                     for agent in self.agents):
                 if not self.silent:
                     self.silent = True
                     self.emit("silence_started", desires={a.id: a.desire for a in self.agents})
