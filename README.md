@@ -30,22 +30,35 @@ python3 -m venv .venv
 .\.venv\Scripts\python.exe -m uvicorn bstom.app:app --host 127.0.0.1 --port 8878
 ```
 
-## 실제 AI 연결: Groq 무료 플랜
+## 실제 AI 연결: Gemini 무료 등급
 
-[Groq API Keys](https://console.groq.com/keys)에서 키를 발급하고, 현재 요금제가 **Free**인지 확인하세요. 결제 수단 등록과 유료 플랜 전환은 필요하지 않습니다. 제공 모델·무료 한도는 바뀔 수 있으며, 정확한 계정 한도는 콘솔을 따릅니다. [무료 한도 문서](https://console.groq.com/docs/rate-limits), [요금 안내](https://console.groq.com/docs/billing-faqs)
+[Google AI Studio API Keys](https://aistudio.google.com/api-keys)에서 Bstom 전용 키를 발급하고 프로젝트가 **무료 등급**인지 확인하세요. 결제 연결이나 유료 업그레이드는 필요하지 않습니다. 기본 모델은 `gemini-3.5-flash-lite`이며 무료 제공 모델과 할당량은 바뀔 수 있습니다. [공식 요금표](https://ai.google.dev/gemini-api/docs/pricing), [API 키 안내](https://ai.google.dev/gemini-api/docs/api-key)
 
-프로젝트 최상위에 `.env.local` 파일을 만들고 아래 값을 설정한 뒤 서버를 다시 시작합니다. 키는 채팅, 스크린샷, GitHub에 넣지 마세요.
+프로젝트 최상위에 `.env.local`을 만들고 다음 값을 설정한 뒤 서버를 다시 시작합니다. 키는 채팅, 스크린샷, GitHub에 넣지 마세요.
 
 ```dotenv
 BSTOM_MODE=compatible
+LLM_PROVIDER=gemini
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+LLM_MODEL=gemini-3.5-flash-lite
+GEMINI_API_KEY=여기에_본인_키를_로컬에서만_입력
+```
+
+화면에서 `실제 AI · Gemini`를 선택합니다. Gemini의 네이티브 REST API로 JSON 판단과 SSE 발언 스트림을 처리합니다. 키는 서버의 요청 헤더에만 넣으며 브라우저에 전달하지 않습니다. `.env.local`, `.env`, 대화 기록과 로그는 Git에서 제외됩니다. 공개 코드를 받는 사람은 자신의 키가 필요합니다.
+
+무료 한도를 넘으면 대기하거나 공급자 오류가 발생할 수 있으며 앱은 결제·업그레이드를 자동으로 하지 않습니다. 이미 유료 등급인 프로젝트에서는 공급자의 사용료가 발생할 수 있으므로 프로젝트 등급을 확인하세요.
+
+OpenAI 호환 공급자도 선택할 수 있습니다. 기존 Groq 설정을 사용하려면 다음처럼 설정합니다. Gemini와 호환 API의 키는 분리되어 사용됩니다.
+
+```dotenv
+BSTOM_MODE=compatible
+LLM_PROVIDER=compatible
 LLM_BASE_URL=https://api.groq.com/openai/v1
 LLM_MODEL=qwen/qwen3.8-27b
 LLM_API_KEY=여기에_본인_키를_로컬에서만_입력
 ```
 
-화면에서 `실제 AI · Groq`를 선택합니다. `.env.local`과 `.env`, 대화 기록, 로그는 Git에서 제외됩니다. 프런트엔드는 키를 받거나 보관하지 않고 서버의 환경설정만 사용합니다. 공개 저장소의 코드를 받는 사람은 자신의 키가 필요합니다.
-
-OpenAI 호환 Chat Completions API를 제공하는 다른 공급자는 `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`를 바꿔 연결할 수 있습니다. 공급자별 모델·파라미터 지원 여부를 확인해야 합니다. 유료 공급자나 유료 요금제로 바꾸면 해당 공급자의 사용료가 발생할 수 있습니다. 앱은 결제·업그레이드를 자동으로 하지 않습니다.
+`compatible` 세션 모드는 실제 AI를 뜻하는 기존 인터페이스 이름입니다. 실제 공급자는 `LLM_PROVIDER`가 선택합니다. 공급자별 모델·파라미터 지원 여부를 확인해야 합니다.
 
 ## 사용법
 
@@ -63,7 +76,7 @@ OpenAI 호환 Chat Completions API를 제공하는 다른 공급자는 `LLM_BASE
 | --- | --- |
 | `bstom/models.py` | 에이전트 상태, 개인 기억, 준비 중인 생각, 메시지와 발언 요청 |
 | `bstom/engine.py` | 공통 기록, 독립적인 에이전트 루프, 중재, 스트림 중단, 정적, 세션 제어 |
-| `bstom/llm.py` | Mock / OpenAI 호환 공급자, 전역 동시 호출·분당 요청·토큰 제한 |
+| `bstom/llm.py` | Mock / Gemini / OpenAI 호환 공급자, 전역 동시 호출·분당 요청·토큰 제한 |
 | `bstom/prompts.py` | 대화 스타일, 사적인 판단과 실제 발언 분리, 유한한 문맥 구성 |
 | `bstom/app.py` | REST, WebSocket, 로컬 기록 조회 |
 | `static/` | 엔진과 분리된 단순한 한국어 웹 디버그 화면 |
@@ -86,7 +99,7 @@ OpenAI 호환 Chat Completions API를 제공하는 다른 공급자는 `LLM_BASE
 | --- | --- | --- |
 | `API_MAX_CONCURRENCY` | 2 | 모든 실제 API 세션이 공유하는 동시 호출 제한 |
 | `API_REQUESTS_PER_MINUTE` | 12 | 판단과 발언 생성을 합친 분당 요청 제한 |
-| `API_TOKENS_PER_MINUTE` | 6500 | 입력·출력 예약량으로 제한하고 실제 사용량이 있으면 보정 |
+| `API_TOKENS_PER_MINUTE` | 20000 | 입력·출력 예약량으로 제한하고 실제 사용량이 있으면 보정 |
 | `SESSION_MAX_CALLS` | 60 | 실패한 요청도 포함하는 세션별 호출 예산 |
 | `SESSION_MAX_MESSAGES` | 40 | 사용자 발언과 AI 발언을 합친 최대 메시지 수 |
 | `SESSION_MAX_SECONDS` | 900 | 일시정지 시간을 포함하는 세션 수명 |

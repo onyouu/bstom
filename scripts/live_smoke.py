@@ -8,15 +8,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from bstom.config import Settings
 from bstom.engine import Session
-from bstom.llm import CallGate, CompatibleLLM
+from bstom.llm import CallGate, make_provider
 
 
 async def main():
     settings = Settings(session_max_calls=24, session_max_messages=12, session_max_seconds=160,
                         data_dir='artifacts/live-smoke')
-    if not settings.llm_api_key:
-        raise SystemExit('No local LLM_API_KEY configured')
-    provider = CompatibleLLM(settings, CallGate(settings))
+    if not settings.active_api_key:
+        raise SystemExit('No local key configured for the selected provider')
+    provider = make_provider(settings, CallGate(settings))
     session = Session('친구랑 같이 쓰는 재밌는 웹 서비스', provider, settings, 'compatible')
     await session.start()
     intervened = False
@@ -35,7 +35,7 @@ async def main():
     finally:
         await session.end('live_smoke_complete')
         await provider.close()
-    report = {'model':settings.llm_model,'calls':session.calls,'user_intervened':intervened,
+    report = {'provider':settings.llm_provider,'model':settings.llm_model,'calls':session.calls,'user_intervened':intervened,
               'interrupted':any(m.interrupted and m.text for m in session.messages),
               'speakers':list({m.speaker for m in session.messages if m.speaker!='user' and m.text}),
               'completed_ai_messages':len([m for m in session.messages if m.speaker!='user' and m.text and m.finished and not m.interrupted]),

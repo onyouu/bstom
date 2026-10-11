@@ -146,6 +146,85 @@ class CompatibleLLM:
         await self.client.aclose()
 
 
+class GeminiLLM(CompatibleLLM):
+    """Native Gemini REST adapter; secrets stay in headers, never URL parameters."""
+
+    def headers(self):
+        return {"x-goog-api-key": self.settings.gemini_api_key}
+
+    def endpoint(self, method):
+        model = self.settings.llm_model.removeprefix("models/")
+        return f'{self.settings.llm_base_url.rstrip("/")}/models/{model}:{method}'
+
+    def payload(self, messages, stream=False, decision=False):
+        config = {"maxOutputTokens": self.settings.max_output_tokens, "temperature": 0.85}
+        if self.settings.llm_model.removeprefix("models/").startswith("gemini-3"):
+            config["thinkingConfig"] = {"thinkingLevel": "LOW"}
+        if decision:
+            config.update(responseMimeType="application/json", responseJsonSchema=Decision.model_json_schema())
+        return {"systemInstruction": {"parts": [{"text": "\n".join(m["content"] for m in messages if m["role"] == "system")}]},
+                "contents": [{"role": "model" if m["role"] == "assistant" else "user",
+                              "parts": [{"text": m["content"]}]} for m in messages if m["role"] != "system"],
+                "generationConfig": config}
+
+    @staticmethod
+    def content(result, reservation):
+        usage = result.get("usageMetadata", {}).get("totalTokenCount")
+        if isinstance(usage, int) and usage >= 0:
+            reservation[1] = usage
+        if result.get("error"):
+            raise ProviderError("provider_stream_error")
+        if result.get("promptFeedback", {}).get("blockReason"):
+            raise ProviderError("content_blocked", 15)
+        candidates = result.get("candidates", [])
+        if not candidates:
+            return ""
+        candidate = candidates[0]
+        reason = candidate.get("finishReason")
+        if reason and reason not in ("STOP", "MAX_TOKENS"):
+            raise ProviderError("content_blocked", 15)
+        return "".join(part.get("text", "") for part in candidate.get("content", {}).get("parts", [])
+                       if not part.get("thought"))
+
+    async def decide(self, agent, view, session):
+        try:
+            messages = decision_messages(agent, view)
+            async with self.gate.call(session, self.estimate(messages)) as reservation:
+                response = await self.client.post(self.endpoint("generateContent"), headers=self.headers(),
+                                                  json=self.payload(messages, decision=True))
+                self.check(response)
+                return Decision.model_validate_json(self.content(response.json(), reservation))
+        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+            raise ProviderError("network_error" if isinstance(exc, httpx.HTTPError) else "invalid_response") from None
+
+    async def stream(self, agent, view, decision, session):
+        try:
+            messages = speech_messages(agent, view, decision)
+            received = False
+            async with self.gate.call(session, self.estimate(messages)) as reservation:
+                async with self.client.stream("POST", self.endpoint("streamGenerateContent"), params={"alt": "sse"},
+                                              headers=self.headers(), json=self.payload(messages)) as response:
+                    self.check(response)
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if not data:
+                            continue
+                        chunk = self.content(json.loads(data), reservation)
+                        if chunk:
+                            received = True
+                            yield chunk
+                    if not received:
+                        raise ProviderError("empty_response")
+        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
+            raise ProviderError("stream_error") from None
+
+
+def make_provider(settings, gate):
+    return GeminiLLM(settings, gate) if settings.llm_provider == "gemini" else CompatibleLLM(settings, gate)
+
+
 class MockLLM:
     """Deterministic content/state approximation, never a claim of real AI."""
     def __init__(self, settings):

@@ -231,7 +231,8 @@ class Session:
         interrupted = False
         failed = False
         try:
-            async with asyncio.timeout(45):
+            # A free-tier pacing window can itself take 60 seconds.
+            async with asyncio.timeout(120):
                 async with aclosing(self.provider.stream(request.agent, self.view(), request.decision, self)) as stream:
                     async for chunk in stream:
                         if self.status != "running":
