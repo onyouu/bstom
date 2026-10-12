@@ -56,8 +56,9 @@ async def test_autonomy_order_drift_and_recall(tmp_path):
     session = Session("생명과학", MockLLM(cfg), cfg)
     await session.start()
     try:
-        # Verify conversation behavior, not wall-clock speed on a busy laptop.
-        await until(lambda: len([m for m in session.messages if m.finished]) >= 13, timeout=8)
+        # Autonomous choices do not put recall at a fixed message index.
+        await until(lambda: len([m for m in session.messages if m.finished]) >= 13
+                    and any(m.finished and m.kind == "recall" for m in session.messages), timeout=8)
         messages = [m for m in session.messages if m.finished]
         order = [m.speaker for m in messages]
         assert len(set(order)) == 3
@@ -383,17 +384,28 @@ async def test_gap_is_between_messages_and_first_bubble_is_immediate(tmp_path):
     provider.text = "한 줄"
     session = Session("두 채팅", provider, config(tmp_path, turn_pause_seconds=0.12))
     session.status = "running"
+    # Use the same clock as pacing; Windows wall time can change mid-test.
+    observed = []
+    original_emit = session.emit
+
+    def observe(kind, *args, **kwargs):
+        observed.append((kind, time.monotonic()))
+        return original_emit(kind, *args, **kwargs)
+
+    session.emit = observe
     try:
         session.begin_speech(Request(session.agents[0], decision(), 0, 0))
         await until(lambda: session.active_message is None)
         first = session.messages[0]
         first_chunk = next(e for e in session.events if e["type"] == "speech_chunk")
-        assert first_chunk["timestamp"] - list(session.events)[0]["timestamp"] < 0.1
+        first_time = next(stamp for kind, stamp in observed if kind == "speech_chunk")
+        assert first_time - observed[0][1] < 0.1
         session.begin_speech(Request(session.agents[1], decision(), session.revision, 0))
         await until(lambda: session.active_message is None)
         chunks = [e for e in session.events if e["type"] == "speech_chunk"]
         assert len(chunks) == 2 and all(e["data"]["text"] == provider.text for e in chunks)
-        assert chunks[1]["timestamp"] - chunks[0]["timestamp"] >= 0.12
+        times = [stamp for kind, stamp in observed if kind == "speech_chunk"]
+        assert times[1] - times[0] >= 0.12
         await session.user_message("다른 생각도 있어")
         assert first.text == provider.text and first.finished and not first.interrupted
     finally:
