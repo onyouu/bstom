@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     mock_chunk_delay: float = Field(0.08, ge=0, le=1)
     ollama_context_length: int = Field(2048, ge=1024, le=32768)
     ollama_fast_mode: bool = True
+    ollama_gpu_layers: int = Field(-1, ge=-1, le=999)
     data_dir: str = "data"
 
     @property

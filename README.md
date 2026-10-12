@@ -9,7 +9,7 @@
 브라우저 없이 Python/Tk 전용 창에서 대화합니다. 판단과 발언 생성은 설치된 Ollama의 **다운로드한 로컬 모델**만 사용합니다. API 키·외부 사용료·분당 요청 제한이 없으며 데스크톱 모드의 호출·발언 수·시간 제한과 인위적 채팅 간격도 꺼져 있습니다. 속도는 PC의 GPU와 메모리에 따릅니다.
 
 1. [Ollama](https://ollama.com/download/windows)를 설치하고 실행합니다.
-2. 모델을 받습니다: `ollama pull qwen2.5:3b`.
+2. 모델을 받습니다: `ollama pull gemma3:4b`.
 3. 이 폴더의 **Bstom.cmd**를 더블클릭합니다. 또는 `run-desktop.ps1`을 실행합니다.
 4. 주제를 적고 테이블을 엽니다. 내 발언, 입력 중 표시, 일시정지·재개·종료, 자동 기록 저장과 기록 조회를 사용할 수 있습니다.
 
@@ -21,6 +21,10 @@
 
 처음 모델을 불러올 때는 시간이 더 걸립니다. 닫기 버튼은 진행 중인 생성을 취소하고 기록을 저장합니다. 대화는 기존과 같이 `data/`에 저장하며 키와 실제 기록은 공개 저장소에 올리지 않습니다. Linux에서는 Tk 지원 패키지(보통 `python3-tk`)와 그래픽 화면이 필요합니다.
 
+기본 모델은 **Gemma 3 4B**입니다. RTX 2050 4GB에서 한국어 대화를 직접 비교해 수다 말투를 우선해 골랐습니다. 더 빠른 대안을 원하면 `ollama pull exaone3.5:2.4b`로 받은 뒤 새 테이블의 모델 목록에서 선택할 수 있습니다. EXAONE은 한국어 문장은 매끄럽지만 이번 비교에서 설명하는 말투가 많았습니다. 두 모델 모두 완벽한 자연스러움을 보장하지 않습니다. 실제 측정 조건과 예시는 [검증 기록](docs/VALIDATION.md)에 있습니다.
+
+`OLLAMA_GPU_LAYERS=-1`은 Ollama의 자동 선택을 사용합니다. 이 PC에서는 `99`로 작은 Gemma 모델을 GPU에 전부 올려 더 빨라졌습니다. 다른 PC에서는 자동 선택이 기본이며, VRAM이 부족한 모델에 무리하게 큰 값을 적용하지 않습니다.
+
 작은 GPU에서는 모델을 한 번에 하나씩 실행합니다. 세 에이전트의 비동기 루프·기억·관심·발언 판단은 독립적이며 모델 가중치만 공유합니다. 로컬 빠른 모드는 하나의 구조화된 응답에서 개인적인 판단과 실제 할 말을 함께 준비하고, 중재에서 선택된 발언만 공개합니다. 사용자 개입 전 준비된 말은 폐기합니다. GPU 대기 후에는 최신 대화 문맥을 다시 읽습니다.
 
 기존 웹 디버그 화면도 다음 설정으로 같은 로컬 엔진을 사용할 수 있습니다:
@@ -29,9 +33,10 @@
 BSTOM_MODE=compatible
 LLM_PROVIDER=ollama
 LLM_BASE_URL=http://127.0.0.1:11434
-LLM_MODEL=qwen2.5:3b
+LLM_MODEL=gemma3:4b
 OLLAMA_CONTEXT_LENGTH=2048
 OLLAMA_FAST_MODE=true
+OLLAMA_GPU_LAYERS=-1
 API_MAX_CONCURRENCY=1
 API_REQUESTS_PER_MINUTE=0
 API_TOKENS_PER_MINUTE=0

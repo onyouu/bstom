@@ -28,6 +28,9 @@ async def test_local_fast_reply_uses_one_call_and_never_sends_keys(tmp_path):
     assert settings.live_available and not settings.active_api_key
     provider = make_provider(settings, CallGate(settings))
     assert isinstance(provider, OllamaLLM)
+    assert "num_gpu" not in provider.payload([], decision=True)["options"]
+    settings.ollama_gpu_layers = 99
+    assert provider.payload([], decision=True)["options"]["num_gpu"] == 99
     await provider.client.aclose()
     requests = []
 

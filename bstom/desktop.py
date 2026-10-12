@@ -106,7 +106,7 @@ class DesktopWindow:
         self.status = "created"
         self.closing = False
         self.tick = 0
-        root.title("Bstom · 로컬 대화")
+        root.title("Bstom · 로컬 대화 · " + settings.llm_model)
         root.geometry("1050x800")
         root.minsize(760, 600)
         root.configure(bg="#f6f5f0")
@@ -124,7 +124,7 @@ class DesktopWindow:
         self.topic = tk.StringVar(value=topic)
         self.model = tk.StringVar(value=settings.llm_model)
         ttk.Entry(form, textvariable=self.topic, font=("맑은 고딕", 11)).pack(side="left", fill="x", expand=True, padx=(0, 8))
-        self.model_picker = ttk.Combobox(form, textvariable=self.model, width=18, values=["qwen2.5:3b", "qwen3.5:2b", "qwen3.5:4b", "qwen3:4b-instruct-2507-q4_K_M"])
+        self.model_picker = ttk.Combobox(form, textvariable=self.model, width=22, values=["gemma3:4b", "exaone3.5:2.4b", "qwen2.5:3b", "qwen3.5:2b", "qwen3.5:4b", "qwen3:4b-instruct-2507-q4_K_M"])
         self.model_picker.pack(side="left", padx=(0, 8))
         self.start_button = ttk.Button(form, text="테이블 열기", command=self.start)
         self.start_button.pack(side="left")
@@ -197,6 +197,7 @@ class DesktopWindow:
         self.controls()
         self.notice.set("로컬 모델을 연결하는 중이에요. 처음에는 모델을 불러오는 시간이 필요해요.")
         self.engine.submit(self.engine.start(topic, self.model.get().strip()))
+        self.root.title("Bstom · 로컬 대화 · " + self.model.get().strip())
 
     def send(self):
         text = self.input.get("1.0", "end-1c").strip()
@@ -330,7 +331,7 @@ def main(topic="", auto_start=False):
     configured = Settings()
     settings = configured.model_copy(update={
         "llm_provider": "ollama", "llm_base_url": "http://127.0.0.1:11434",
-        "llm_model": configured.llm_model if configured.llm_provider == "ollama" else "qwen2.5:3b",
+        "llm_model": configured.llm_model if configured.llm_provider == "ollama" else "gemma3:4b",
         "api_max_concurrency": 1, "api_requests_per_minute": 0, "api_tokens_per_minute": 0,
         "session_max_calls": 0, "session_max_messages": 0, "session_max_seconds": 0,
         "turn_pause_seconds": 0, "speech_cooldown": 0, "max_output_tokens": 256,
