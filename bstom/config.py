@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     max_output_tokens: int = Field(512, ge=64, le=2048)
     reevaluate_seconds: float = Field(12, ge=0.05, le=120)
     speech_cooldown: float = Field(0, ge=0, le=60)
-    turn_pause_seconds: float = Field(4, ge=0, le=30)
+    turn_pause_seconds: float = Field(1, ge=0, le=30)
     mock_chunk_delay: float = Field(0.08, ge=0, le=1)
     data_dir: str = "data"
 

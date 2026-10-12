@@ -32,6 +32,7 @@ class Agent:
     name: str
     seed_interest: str
     state: State = State.LISTENING
+    typing: bool = False
     memory: list[str] = field(default_factory=list)
     interest: str = ""
     desire: float = 0
@@ -41,7 +42,7 @@ class Agent:
     reviews: int = 0
 
     def public(self):
-        return {"id": self.id, "name": self.name, "state": self.state,
+        return {"id": self.id, "name": self.name, "state": self.state, "typing": self.typing,
                 "interest": self.interest, "desire": self.desire,
                 "memory": self.memory, "pending": self.pending.model_dump() if self.pending else None}
 

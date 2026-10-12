@@ -16,11 +16,23 @@ function controls() {
   $('pauseButton').textContent=current?.status==='paused'?'다시 이야기하기':'잠깐 쉬기';
   $('sessionStatus').textContent=labels[current?.status]||'';
   $('callCount').textContent=current?.call_limit?`${current.calls}/${current.call_limit} 호출`:`${current?.calls||0}회 호출`;
+  renderTyping();
+}
+function renderTyping() {
+  const indicator=$('typingIndicator');
+  const writers=current?.status==='running'?current.agents.filter(a=>a.typing):[];
+  indicator.hidden=!writers.length;
+  indicator.replaceChildren();
+  if(!writers.length)return;
+  indicator.append(node('span','',writers.map(a=>a.name).join(', ')+' 입력 중'));
+  const dots=node('span','typing-dots');dots.setAttribute('aria-hidden','true');
+  for(let i=0;i<3;i++)dots.append(node('span','','•'));
+  indicator.append(dots);
 }
 function renderAgents() {
   $('agents').replaceChildren(...current.agents.map(a=>{
-    const card=node('div','agent'+(a.state==='SPEAKING'?' speaking':''));
-    const top=node('div','agenttop');top.append(node('div','avatar',a.name[0]),node('strong','',a.name),node('span','agentstate',states[a.state]||a.state));
+    const card=node('div','agent'+(a.state==='SPEAKING'?' speaking':a.typing?' typing':''));
+    const top=node('div','agenttop');top.append(node('div','avatar',a.name[0]),node('strong','',a.name),node('span','agentstate',a.typing?'입력 중…':states[a.state]||a.state));
     card.append(top,node('p','interest',a.interest||'아직 어떤 얘기가 나올지 듣고 있어요'));return card;
   }));
 }
@@ -45,7 +57,7 @@ function eventReceived(event) {
   if(event.seq<=lastSeq)return;lastSeq=event.seq;addEvent(event);
   current.calls=event.calls??current.calls;
   const data=event.data, agent=current.agents.find(a=>a.id===event.agent_id);
-  if(agent && data.state){agent.state=data.state;if(data.decision){agent.interest=data.decision.interest;agent.desire=data.decision.desire;}if(data.interest)agent.interest=data.interest;renderAgents();}
+  if(agent && data.state){agent.state=data.state;agent.typing=data.typing??false;if(data.decision){agent.interest=data.decision.interest;agent.desire=data.decision.desire;}if(data.interest)agent.interest=data.interest;renderAgents();}
   if(event.type==='agent_speaking'||event.type==='user_spoke')current.messages.push(data.message);
   if(event.type==='speech_chunk'){const m=current.messages.find(m=>m.id===data.message_id);if(m)m.text+=data.text;}
   if(event.type==='agent_finished'||event.type==='agent_interrupted'){const i=current.messages.findIndex(m=>m.id===data.message.id);if(i>=0)current.messages[i]=data.message;}
@@ -64,7 +76,7 @@ function connect(id, token) {
   const own=socket;
   own.onopen=()=>{$('connection').textContent='실시간 연결됨';notice();};
   own.onmessage=e=>{if(token===generation)eventReceived(JSON.parse(e.data));};
-  own.onclose=()=>{if(token!==generation)return;$('connection').textContent='연결 끊김';if(current.status==='running'||current.status==='paused'){notice('연결을 복구하는 중이에요.');reconnect=setTimeout(()=>connect(id,token),1500);}};
+  own.onclose=()=>{if(token!==generation)return;$('connection').textContent='연결 끊김';current.agents.forEach(a=>a.typing=false);renderAgents();renderTyping();if(current.status==='running'||current.status==='paused'){notice('연결을 복구하는 중이에요.');reconnect=setTimeout(()=>connect(id,token),1500);}};
 }
 function show(session, subscribe=true) {
   generation++;clearTimeout(reconnect);if(socket){socket.onclose=null;socket.close();socket=null;}

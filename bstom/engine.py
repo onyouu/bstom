@@ -78,7 +78,8 @@ class Session:
 
     def state(self, agent, state, event=None, **data):
         agent.state = state
-        self.emit(event or "agent_state", agent.id, state=state, **data)
+        agent.typing = data.pop("typing", False)
+        self.emit(event or "agent_state", agent.id, state=state, typing=agent.typing, **data)
 
     def changed(self):
         self.revision += 1
@@ -219,7 +220,7 @@ class Session:
         self.requests.pop(request.agent.id, None)
         self.active_agent = request.agent
         self.active_message = Message(request.agent.id, request.agent.name, kind=request.decision.kind)
-        self.state(request.agent, State.THINKING)
+        self.state(request.agent, State.THINKING, "agent_typing", typing=True)
         self.speech_task = asyncio.create_task(self.speak(request, self.active_message))
 
     async def speak(self, request, message):
@@ -228,7 +229,7 @@ class Session:
         try:
             gap = self.settings.turn_pause_seconds
             if gap:
-                gap += min(6, len(self.last_finished_text) / 30)
+                gap += min(0.5, len(self.last_finished_text) / 200)
             initial_delay = max(0, self.last_finished_at + gap - time.monotonic())
             async with asyncio.timeout(120 + gap):
                 source = self.provider.stream(request.agent, self.view(), request.decision, self)

@@ -324,8 +324,10 @@ async def test_buffered_generation_and_user_cut_discard_unseen_text(tmp_path):
         assert provider.open_streams == 0
         message = session.active_message
         assert not message.text and not session.view()["recent"]
+        assert session.snapshot()["agents"][0]["typing"]
         await session.user_message("잠깐, 다른 생각이 있어")
         assert message.interrupted and not message.text
+        assert not any(a.typing for a in session.agents)
         await asyncio.sleep(0.25)
         assert len(session.messages) == 1 and session.messages[0].speaker == "user"
         assert not any(e["type"] == "speech_chunk" for e in session.events)
@@ -344,7 +346,10 @@ async def test_message_gap_generates_ahead_and_delivers_whole_bubble(tmp_path):
     try:
         await until(provider.generated.is_set)
         assert not session.messages and session.active_agent.state == State.THINKING
+        assert session.active_agent.typing
+        assert any(e["type"] == "agent_typing" and e["data"]["typing"] for e in session.events)
         await until(lambda: session.active_message is None)
+        assert not any(a.typing for a in session.agents)
         speaking = next(e for e in session.events if e["type"] == "agent_speaking")
         assert speaking["timestamp"] - list(session.events)[0]["timestamp"] >= 0.12
         assert session.messages[0].text == provider.text
@@ -367,6 +372,7 @@ async def test_buffered_error_discards_incomplete_bubble_and_closes_producer(tmp
     assert not any(e["type"] == "speech_chunk" for e in session.events)
     assert any(e["type"] == "provider_error" and e["data"]["code"] == "test_broken_stream" for e in session.events)
     assert provider.open_streams == 0
+    assert not any(a.typing for a in session.agents)
     await session.end()
 
 
@@ -386,7 +392,7 @@ async def test_gap_is_between_messages_and_first_bubble_is_immediate(tmp_path):
         await until(lambda: session.active_message is None)
         chunks = [e for e in session.events if e["type"] == "speech_chunk"]
         assert len(chunks) == 2 and all(e["data"]["text"] == provider.text for e in chunks)
-        assert chunks[1]["timestamp"] - chunks[0]["timestamp"] >= 0.20
+        assert chunks[1]["timestamp"] - chunks[0]["timestamp"] >= 0.12
         await session.user_message("다른 생각도 있어")
         assert first.text == provider.text and first.finished and not first.interrupted
     finally:
@@ -406,3 +412,18 @@ async def test_slow_generation_counts_toward_message_gap(tmp_path):
     parts = [text async for text in paced_stream(slow_source(), config(tmp_path), "naru", 0.12)]
     assert parts == ["완성된 채팅"]
     assert time.monotonic() - started < 0.25
+
+
+@pytest.mark.asyncio
+async def test_typing_only_marks_selected_speaker_and_clears_on_pause(tmp_path):
+    session = Session("입력 상태", Controlled(), config(tmp_path))
+    await session.start()
+    try:
+        await until(lambda: session.active_agent is not None)
+        snapshot = session.snapshot()
+        writers = [a for a in snapshot["agents"] if a["typing"]]
+        assert len(writers) == 1 and writers[0]["id"] == session.active_agent.id
+        await session.pause()
+        assert not any(a["typing"] for a in session.snapshot()["agents"])
+    finally:
+        await session.end()
