@@ -173,7 +173,7 @@ class Session:
     async def arbitrate(self):
         while self.status == "running":
             await asyncio.sleep(0.06)  # arbitration window for near-simultaneous requests
-            if self.calls >= self.settings.session_max_calls and not self.active_agent:
+            if self.settings.session_max_calls and self.calls >= self.settings.session_max_calls and not self.active_agent:
                 asyncio.create_task(self.end("call_budget"))
                 return
             if len(self.messages) >= self.settings.session_max_messages and not self.active_agent:

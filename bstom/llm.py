@@ -43,12 +43,12 @@ class CallGate:
                     while self.tokens and self.tokens[0][0] <= now - 60:
                         self.tokens.popleft()
                     delay = max(0, self.blocked_until - now)
-                    if len(self.starts) >= self.settings.api_requests_per_minute:
+                    if self.settings.api_requests_per_minute and len(self.starts) >= self.settings.api_requests_per_minute:
                         delay = max(delay, self.starts[0] + 60 - now)
-                    if self.tokens and sum(tokens for _, tokens in self.tokens) + estimated_tokens > self.settings.api_tokens_per_minute:
+                    if self.settings.api_tokens_per_minute and self.tokens and sum(tokens for _, tokens in self.tokens) + estimated_tokens > self.settings.api_tokens_per_minute:
                         delay = max(delay, self.tokens[0][0] + 60 - now)
                     if delay <= 0:
-                        if session.calls >= self.settings.session_max_calls:
+                        if self.settings.session_max_calls and session.calls >= self.settings.session_max_calls:
                             raise BudgetExceeded()
                         session.calls += 1
                         self.starts.append(now)
@@ -56,7 +56,8 @@ class CallGate:
                         self.tokens.append(reservation)
                         break
                 if delay >= 0.5:
-                    session.emit("api_wait", seconds=round(delay, 1), reason="free_tier_pacing")
+                    session.emit("api_wait", seconds=round(delay, 1),
+                                 reason="provider_retry" if self.blocked_until > time.monotonic() else "configured_pacing")
                 await asyncio.sleep(max(0.01, delay))
             yield reservation
 
@@ -231,7 +232,7 @@ class MockLLM:
         self.settings = settings
 
     async def decide(self, agent, view, session):
-        if session.calls >= self.settings.session_max_calls:
+        if self.settings.session_max_calls and session.calls >= self.settings.session_max_calls:
             raise BudgetExceeded()
         session.calls += 1
         await asyncio.sleep(0)
@@ -262,7 +263,7 @@ class MockLLM:
                         memory=(latest["text"][:90] if latest else view["topic"][:90]), kind=kind)
 
     async def stream(self, agent, view, decision, session):
-        if session.calls >= self.settings.session_max_calls:
+        if self.settings.session_max_calls and session.calls >= self.settings.session_max_calls:
             raise BudgetExceeded()
         session.calls += 1
         text = decision.thought

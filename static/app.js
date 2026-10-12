@@ -15,7 +15,7 @@ function controls() {
   $('sendButton').disabled=!active; $('userText').disabled=!active;
   $('pauseButton').textContent=current?.status==='paused'?'다시 이야기하기':'잠깐 쉬기';
   $('sessionStatus').textContent=labels[current?.status]||'';
-  $('callCount').textContent=`${current?.calls||0}/${current?.call_limit||0} 호출`;
+  $('callCount').textContent=current?.call_limit?`${current.calls}/${current.call_limit} 호출`:`${current?.calls||0}회 호출`;
 }
 function renderAgents() {
   $('agents').replaceChildren(...current.agents.map(a=>{
@@ -53,7 +53,7 @@ function eventReceived(event) {
   if(event.type==='session_paused'){current.status='paused';notice();}
   if(event.type==='session_resumed'){current.status='running';notice();}
   if(event.type==='provider_error')notice(`AI 연결 상태: ${data.code}. 잠시 후 다시 시도합니다.`);
-  if(event.type==='api_wait')notice(`무료 API 한도를 지키기 위해 약 ${Math.ceil(data.seconds)}초 기다리는 중이에요. 내 발언은 바로 남길 수 있어요.`);
+  if(event.type==='api_wait')notice(`${data.reason==='provider_retry'?'API에서 요청을 거절해 재시도까지':'설정한 호출 간격에 따라'} 약 ${Math.ceil(data.seconds)}초 기다리는 중이에요. 내 발언은 바로 남길 수 있어요.`);
   if(event.type==='speech_chunk')notice();
   if(event.type==='budget_exhausted')notice('설정한 호출 예산을 모두 사용했어요.');
   if(event.type==='session_ended'){current.status='ended';current.calls=data.calls;notice(data.reason==='user'?'대화를 저장했어요.':`세션 한도에 도달해 대화를 마쳤어요 (${data.reason}).`);history();}
@@ -80,5 +80,5 @@ $('messageForm').onsubmit=async e=>{e.preventDefault();if(!$('userText').value.t
 $('userText').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('messageForm').requestSubmit();}};
 for(const [id,action] of [['pauseButton','pause'],['endButton','end']])$(id).onclick=async()=>{try {const verb=action==='pause'&&current.status==='paused'?'resume':action;const snapshot=await api(`/api/sessions/${current.id}/${verb}`,{});current.calls=snapshot.calls;controls();}catch(error){notice(error.message);}};
 $('exportButton').onclick=async()=>{try{const snapshot=await api('/api/sessions/'+current.id);const url=URL.createObjectURL(new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}));const a=node('a');a.href=url;a.download=`bstom-${current.id}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){notice(e.message);}};
-async function init(){try{const config=await api('/api/config');$('mode').value=config.default_mode;$('mode').options[1].disabled=!config.live_available;$('mode').options[1].textContent=`실제 AI · ${config.provider_name}`;$('configText').textContent=`${config.provider_name} (${config.model}): ${config.live_available?'키 연결됨':'로컬 키 설정 필요'} · 세션 최대 ${config.limits.calls}회 호출 / ${config.limits.messages}개 발언 · Mock은 API를 사용하지 않습니다.`;await history();}catch(e){notice(e.message);}}
+async function init(){try{const config=await api('/api/config');$('mode').value=config.default_mode;$('mode').options[1].disabled=!config.live_available;$('mode').options[1].textContent=`실제 AI · ${config.provider_name}`;$('configText').textContent=`${config.provider_name} (${config.model}): ${config.live_available?'키 연결됨':'로컬 키 설정 필요'} · ${config.limits.calls?`세션 최대 ${config.limits.calls}회 호출`:'호출 횟수 제한 없음'} / ${config.limits.messages}개 발언 · ${config.limits.rpm?'설정한 호출 간격 사용':'분당 호출 대기 없음'} · Mock은 API를 사용하지 않습니다.`;await history();}catch(e){notice(e.message);}}
 init();

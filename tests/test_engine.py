@@ -233,6 +233,50 @@ async def test_global_concurrency_and_cancelled_queue(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_unlimited_calls_skip_proactive_pacing_and_budget(tmp_path):
+    cfg = config(tmp_path, session_max_calls=0)
+    gate = CallGate(cfg)
+    session = Session("바로 호출", Controlled(), cfg)
+    session.calls = 1000
+    now = time.monotonic()
+    gate.starts.extend([now] * 100)
+    gate.tokens.append([now, 1000000])
+    async with asyncio.timeout(0.5):
+        async with gate.call(session, 1000000):
+            pass
+    assert session.calls == 1001
+    assert not any(e["type"] == "api_wait" for e in session.events)
+    # Unlimited session calls must not immediately end the orchestrator or Mock.
+    mock = MockLLM(cfg)
+    await mock.decide(session.agents[0], session.view(), session)
+    await session.start()
+    try:
+        await until(lambda: session.active_agent is not None)
+        assert session.status == "running"
+    finally:
+        await session.end()
+
+
+@pytest.mark.asyncio
+async def test_optional_request_pacing_can_still_be_enabled(tmp_path):
+    cfg = config(tmp_path, api_requests_per_minute=1)
+    gate = CallGate(cfg)
+    session = Session("선택한 제한", Controlled(), cfg)
+    async with gate.call(session):
+        pass
+
+    async def queued_call():
+        async with gate.call(session):
+            raise AssertionError("request should still be queued")
+
+    queued = asyncio.create_task(queued_call())
+    await until(lambda: any(e["type"] == "api_wait" for e in session.events))
+    assert session.calls == 1 and not queued.done()
+    queued.cancel()
+    await asyncio.gather(queued, return_exceptions=True)
+
+
+@pytest.mark.asyncio
 async def test_slow_subscriber_has_reconnect_signal(tmp_path):
     session = Session("slow", Controlled(), config(tmp_path))
     queue = asyncio.Queue(maxsize=1)
