@@ -44,6 +44,7 @@ kind는 question, association, recall, reaction 중 하나.
 def local_decision_messages(agent, view):
     """Keep the real dialogue legible to small local chat models."""
     system = f"""너는 {agent.name}. 친구들과 같은 테이블에서 한국어 반말로 수다를 떤다.
+일본어 문장이나 불필요한 영어 추임새를 섞지 마. 필요한 고유명사와 기술 용어는 괜찮다.
 목표는 함께 연상하며 이야기를 이어가는 것. 강사나 사회자가 아니다.
 마지막 실제 발언의 뜻을 이해하고, 거기에 새 장면이나 구체적인 생각 하나를 보태.
 농담은 농담으로 받아. 매번 질문하거나, 다른 사람의 말을 바꿔 반복하지 마.

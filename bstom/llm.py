@@ -2,6 +2,7 @@
 import asyncio
 import hashlib
 import json
+import re
 import time
 from collections import deque
 from contextlib import asynccontextmanager
@@ -280,6 +281,9 @@ class OllamaLLM(CompatibleLLM):
                 content = result["message"]["content"]
                 if self.settings.ollama_fast_mode:
                     reply = PreparedReply.model_validate_json(content)
+                    if re.search(r"[\u3040-\u30ff]", reply.utterance):
+                        self.prepared.pop((session.id, agent.id), None)
+                        raise ProviderError("unexpected_language", 1)
                     plan = Decision.model_validate(reply.model_dump(exclude={"utterance"}))
                     self.prepared[(session.id, agent.id)] = (epoch, plan, reply.utterance)
                 else:

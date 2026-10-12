@@ -54,6 +54,22 @@ async def test_local_fast_reply_uses_one_call_and_never_sends_keys(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_local_does_not_publish_accidental_japanese(tmp_path):
+    settings = local_settings(tmp_path)
+    provider = make_provider(settings, CallGate(settings))
+    await provider.client.aclose()
+    mixed = {**reply(), "utterance": "떡볶이 최고! そうだね"}
+    provider.client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"message": {"content": json.dumps(mixed)}})))
+    session = Session("한국어 수다", provider, settings)
+    try:
+        with pytest.raises(ProviderError, match="unexpected_language"):
+            await provider.decide(session.agents[0], session.view(), session)
+        assert not provider.prepared and not session.messages
+    finally:
+        await provider.close()
+
+
+@pytest.mark.asyncio
 async def test_local_cache_isolates_sessions_and_discards_pre_user_reply(tmp_path):
     settings = local_settings(tmp_path)
     provider = make_provider(settings, CallGate(settings))
