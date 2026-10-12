@@ -32,7 +32,7 @@ def decision_messages(agent, view):
 desire, relevance, novelty는 0~1. thought는 아직 말하지 않은 구체적 생각 한 줄.
 interrupt는 현재 누군가 말하고 있으며 바로 이어야 할 뚜렷한 이유가 있을 때만 true.
 기계적인 동의는 desire가 낮다. 이미 한 말을 반복하지 마.
-정적이라면 이전 기억을 돌아보되 억지로 말하지 않아도 된다.
+이전 기억에서 연결되는 생각을 떠올려도 된다.
 interest는 새 관심사, memory는 보관할 대화 단서 (없으면 빈 문자열).
 kind는 question, association, recall, reaction 중 하나.
 아래 필드만 담은 JSON 객체를 출력:

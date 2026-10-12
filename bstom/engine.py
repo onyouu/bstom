@@ -22,7 +22,6 @@ class Session:
         self.subscribers = set()
         self.seq = self.revision = self.epoch = self.calls = 0
         self.status = "created"
-        self.silent = False
         self.requests = {}
         self.tasks = []
         self.speech_task = None
@@ -57,7 +56,7 @@ class Session:
 
     def snapshot(self):
         return {"id": self.id, "topic": self.topic, "mode": self.mode, "status": self.status,
-                "silent": self.silent, "seq": self.seq, "calls": self.calls,
+                "seq": self.seq, "calls": self.calls,
                 "call_limit": self.settings.session_max_calls,
                 "agents": [agent.public() for agent in self.agents],
                 "messages": [message.public() for message in self.messages],
@@ -70,7 +69,7 @@ class Session:
     def view(self, reflection=0):
         return {"topic": self.topic, "recent": [m.public() for m in self.messages[-7:]],
                 "early": [m.public() for m in self.messages[:2]],
-                "message_count": len(self.messages), "silence": self.silent,
+                "message_count": len(self.messages),
                 "active_speaker": self.active_agent.id if self.active_agent else None,
                 "reflection": reflection}
 
@@ -206,20 +205,11 @@ class Session:
                     self.emit("arbitration", chosen.agent.id,
                               candidates=[{"agent_id": r.agent.id, "score": round(self.score(r), 3)} for r in candidates])
                     self.begin_speech(chosen)
-            elif all(agent.state in (State.LISTENING, State.IDLE, State.INTERRUPTED)
-                     and agent.desire < 0.5 and agent.observed_revision == self.revision
-                     for agent in self.agents):
-                if not self.silent:
-                    self.silent = True
-                    self.emit("silence_started", desires={a.id: a.desire for a in self.agents})
 
     def begin_speech(self, request):
         if request.epoch != self.epoch or self.status != "running":
             return
         self.requests.pop(request.agent.id, None)
-        if self.silent:
-            self.silent = False
-            self.emit("silence_ended")
         self.active_agent = request.agent
         self.active_message = Message(request.agent.id, request.agent.name, kind=request.decision.kind)
         self.messages.append(self.active_message)

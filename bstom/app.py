@@ -180,7 +180,7 @@ async def websocket(websocket: WebSocket, session_id: str):
             await websocket.send_json(event)
 
     async def receive():
-        # Commands use REST; receive watches disconnects, even during silence.
+        # Commands use REST; receive watches disconnects, even when no agents are speaking.
         while True:
             await websocket.receive_text()
 

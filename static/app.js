@@ -15,7 +15,6 @@ function controls() {
   $('sendButton').disabled=!active; $('userText').disabled=!active;
   $('pauseButton').textContent=current?.status==='paused'?'다시 이야기하기':'잠깐 쉬기';
   $('sessionStatus').textContent=labels[current?.status]||'';
-  $('silence').hidden=!current?.silent || current?.status!=='running';
   $('callCount').textContent=`${current?.calls||0}/${current?.call_limit||0} 호출`;
 }
 function renderAgents() {
@@ -51,8 +50,6 @@ function eventReceived(event) {
   if(event.type==='speech_chunk'){const m=current.messages.find(m=>m.id===data.message_id);if(m)m.text+=data.text;}
   if(event.type==='agent_finished'||event.type==='agent_interrupted'){const i=current.messages.findIndex(m=>m.id===data.message.id);if(i>=0)current.messages[i]=data.message;}
   if(['agent_speaking','user_spoke','speech_chunk','agent_finished','agent_interrupted'].includes(event.type))renderMessages();
-  if(event.type==='silence_started')current.silent=true;
-  if(event.type==='silence_ended')current.silent=false;
   if(event.type==='session_paused'){current.status='paused';notice();}
   if(event.type==='session_resumed'){current.status='running';notice();}
   if(event.type==='provider_error')notice(`AI 연결 상태: ${data.code}. 잠시 후 다시 시도합니다.`);

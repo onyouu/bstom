@@ -237,14 +237,11 @@ class MockLLM:
         await asyncio.sleep(0)
         messages = view["recent"]
         count = view["message_count"]
-        # Everyone occasionally runs out of thoughts; reflection, not a forced turn,
-        # makes an older memory interesting again on the next review.
-        quiet = count > 0 and count % 6 == 0 and view["reflection"] == 0
         latest = messages[-1] if messages else None
         token = f'{view["topic"]}:{latest["text"] if latest else ""}:{agent.id}:{view["reflection"]}'
         value = int(hashlib.sha256(token.encode()).hexdigest()[:6], 16) / 0xFFFFFF
         user = latest and latest["speaker"] == "user"
-        desire = 0.12 if quiet else 0.53 + 0.44 * value
+        desire = 0.53 + 0.44 * value
         if user:
             desire = min(1, desire + 0.17)
         if latest and latest["speaker"] == agent.id:

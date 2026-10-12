@@ -106,19 +106,31 @@ async def test_user_interrupt_preserves_partial_and_priority(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_silence_and_resume_from_actual_decision(tmp_path):
+async def test_low_desire_keeps_reevaluating_without_silence_mode(tmp_path):
     provider = Controlled(silent=True)
-    session = Session("정적", provider, config(tmp_path))
+    session = Session("생각", provider, config(tmp_path))
     await session.start()
     try:
-        await until(lambda: session.silent)
+        await until(lambda: any(v["reflection"] > 0 for _, v in provider.views))
         assert not session.messages
+        assert session.status == "running"
+        assert "silence" not in session.view() and "silent" not in session.snapshot()
         provider.silent = False
         await until(lambda: len(session.messages) > 0)
-        assert any(e["type"] == "silence_ended" for e in session.events)
-        assert any(v["reflection"] > 0 for _, v in provider.views)
+        assert not any(e["type"].startswith("silence_") for e in session.events)
     finally:
         await session.end()
+
+
+@pytest.mark.asyncio
+async def test_mock_has_no_periodic_forced_low_desire(tmp_path):
+    cfg = config(tmp_path)
+    provider = MockLLM(cfg)
+    session = Session("아이디어", provider, cfg)
+    for count in (6, 12, 18):
+        view = {**session.view(), "message_count": count}
+        plans = [await provider.decide(agent, view, session) for agent in session.agents]
+        assert all(plan.desire >= 0.5 for plan in plans)
 
 
 @pytest.mark.asyncio

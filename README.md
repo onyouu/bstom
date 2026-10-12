@@ -75,7 +75,7 @@ LLM_API_KEY=여기에_본인_키를_로컬에서만_입력
 | 파일 | 책임 |
 | --- | --- |
 | `bstom/models.py` | 에이전트 상태, 개인 기억, 준비 중인 생각, 메시지와 발언 요청 |
-| `bstom/engine.py` | 공통 기록, 독립적인 에이전트 루프, 중재, 스트림 중단, 정적, 세션 제어 |
+| `bstom/engine.py` | 공통 기록, 독립적인 에이전트 루프, 중재, 스트림 중단, 세션 제어 |
 | `bstom/llm.py` | Mock / Gemini / OpenAI 호환 공급자, 전역 동시 호출·분당 요청·토큰 제한 |
 | `bstom/prompts.py` | 대화 스타일, 사적인 판단과 실제 발언 분리, 유한한 문맥 구성 |
 | `bstom/app.py` | REST, WebSocket, 로컬 기록 조회 |
@@ -87,7 +87,7 @@ LLM_API_KEY=여기에_본인_키를_로컬에서만_입력
 
 에이전트의 끼어들기는 모델이 요청하고 의지 ≥ 0.88, 관련성 ≥ 0.75, 중재 점수 ≥ 0.55인 경우에만 허용합니다. 현재 발언에 최소 25자가 있어야 하며 연속 끼어들기는 최대 2회입니다. 사용자 발언은 이러한 임계값 없이 우선합니다. 사용자 발언 전 준비된 오래된 요청은 폐기합니다.
 
-모든 참여자의 판단이 낮고 진행 중인 생각·발언 요청이 없으면 정적으로 들어갑니다. 각 루프는 정적에서도 재평가하며, 구체적인 새 생각이 선택되면 정적을 종료합니다. 시간 지연만으로 침묵을 연출하지 않습니다. 무작위 발언자 선택도 사용하지 않습니다.
+대화에 별도의 정적 모드나 정적 연출을 넣지 않습니다. 발언 요청이 없으면 독립적인 에이전트 루프가 문맥 변화 또는 안전한 재평가 주기에 따라 다시 판단합니다. 새 요청이 생기면 바로 중재 대상이 됩니다. 실제 발언 의지가 낮을 때나 API 사용량 제한으로 기다릴 수는 있습니다.
 
 최근 문맥, 초기 발언, 에이전트별 개인 기억을 함께 전달해 연상과 재언급을 지원합니다. 생성 문맥은 최근 5개 발언 각각 최대 150자, 초기 단서와 짧은 개인 기억으로 제한하므로 긴 대화의 세부 내용은 생략될 수 있습니다. 원본 대화 기록은 별도로 보존합니다.
 
@@ -114,7 +114,7 @@ LLM_API_KEY=여기에_본인_키를_로컬에서만_입력
 
 모든 엔진 이벤트에 `type`, `session_id`, `agent_id`(해당 없으면 null), `timestamp`(Unix seconds), 단조 증가 `seq`, `calls`, `data`가 있습니다.
 
-필수 이벤트: `agent_thinking`, `agent_wants_to_speak`, `agent_speaking`, `speech_chunk`, `agent_finished`, `agent_interrupted`, `silence_started`, `silence_ended`, `user_spoke`, `session_paused`, `session_resumed`, `session_ended`.
+대화 이벤트: `agent_thinking`, `agent_wants_to_speak`, `agent_speaking`, `speech_chunk`, `agent_finished`, `agent_interrupted`, `user_spoke`, `session_paused`, `session_resumed`, `session_ended`.
 
 진단 이벤트: `session_started`, `agent_state`, `arbitration`, `api_wait`, `provider_error`, `budget_exhausted`. WebSocket 연결 시에는 `snapshot`이 먼저 전달됩니다. 느린 구독자는 1013 코드로 연결을 닫고 스냅샷을 다시 받도록 합니다.
 
@@ -141,7 +141,7 @@ API 키 없이 엔진과 공급자 인터페이스를 검사합니다:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-테스트는 추가 사용자 입력 없는 대화, 비고정 발언 순서, 충돌 중재, 사용자·에이전트 끼어들기, 중단된 내용 보존, 정적 후 재개, 연상과 초기 주제 재언급, 일시정지·재개·종료, 오류 격리, 호출·발언 길이 예산, 오래된 요청 폐기, 동시 호출 제한, 느린 구독자, REST/WebSocket, 공급자 JSON/SSE/429 처리를 검증합니다. 실제 API 호출은 자동 테스트에 포함되지 않습니다.
+테스트는 추가 사용자 입력 없는 대화, 비고정 발언 순서, 충돌 중재, 사용자·에이전트 끼어들기, 중단된 내용 보존, 낮은 발언 의지 후 재평가와 새 요청 처리, Mock의 주기적 발언 억제 제거, 연상과 초기 주제 재언급, 일시정지·재개·종료, 오류 격리, 호출·발언 길이 예산, 오래된 요청 폐기, 동시 호출 제한, 느린 구독자, REST/WebSocket, 공급자 JSON/SSE/429 처리를 검증합니다. 실제 API 호출은 자동 테스트에 포함되지 않습니다.
 
 실제 공급자 스모크 테스트는 **명시적으로** 실행합니다. 현재 공급자 설정에 실제 요청을 보내며 무료 플랜에서도 할당량을 사용합니다:
 

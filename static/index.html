@@ -10,8 +10,8 @@
 <section id="workspace" hidden>
 <div class="sessionbar"><div><strong id="sessionTopic"></strong><span id="sessionStatus" class="pill"></span></div><div class="controls"><button id="pauseButton" class="secondary">잠깐 쉬기</button><button id="endButton" class="secondary">대화 마치기</button><button id="exportButton" class="secondary">기록 저장</button></div></div>
 <div id="agents" class="agents"></div>
-<div class="columns"><section class="conversation"><div class="sectiontitle">테이블의 대화 <span id="connection">연결 중</span></div><div id="messages" class="messages" role="log" aria-label="대화 기록" aria-live="off"></div><div id="silence" class="silence" hidden>잠깐, 각자 생각을 굴리는 중이에요…</div><form id="messageForm" class="composer"><label for="userText" class="sr-only">내 발언</label><textarea id="userText" maxlength="2000" rows="2" placeholder="질문이 아니어도 괜찮아요. 지금 떠오른 말 한마디." required></textarea><button id="sendButton">끼어들기 ↗</button></form><p class="hint">Enter로 보내기 · Shift+Enter로 줄바꿈 · 쉬는 동안에도 메시지를 남길 수 있어요</p></section>
-<aside><details open><summary>엔진 이벤트 <span id="callCount"></span></summary><div id="eventLog" class="eventlog"></div></details><p class="hint">생각 · 발언 의지 · 중재 점수 · 중단 · 정적을 확인하는 디버그 화면입니다.</p></aside></div>
+<div class="columns"><section class="conversation"><div class="sectiontitle">테이블의 대화 <span id="connection">연결 중</span></div><div id="messages" class="messages" role="log" aria-label="대화 기록" aria-live="off"></div><form id="messageForm" class="composer"><label for="userText" class="sr-only">내 발언</label><textarea id="userText" maxlength="2000" rows="2" placeholder="질문이 아니어도 괜찮아요. 지금 떠오른 말 한마디." required></textarea><button id="sendButton">끼어들기 ↗</button></form><p class="hint">Enter로 보내기 · Shift+Enter로 줄바꿈 · 쉬는 동안에도 메시지를 남길 수 있어요</p></section>
+<aside><details open><summary>엔진 이벤트 <span id="callCount"></span></summary><div id="eventLog" class="eventlog"></div></details><p class="hint">생각 · 발언 의지 · 중재 점수 · 중단을 확인하는 디버그 화면입니다.</p></aside></div>
 </section>
 <section class="history"><h2>이전 테이블</h2><div id="historyList"></div></section>
 <footer>정답이나 결론을 만들기보다, 내 생각이 시작될 틈을 만들기 위한 실험.</footer>
