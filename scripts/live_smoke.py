@@ -14,7 +14,7 @@ from bstom.llm import CallGate, make_provider
 async def main():
     settings = Settings(session_max_calls=24, session_max_messages=12, session_max_seconds=160,
                         data_dir='artifacts/live-smoke')
-    if not settings.active_api_key:
+    if not settings.live_available:
         raise SystemExit('No local key configured for the selected provider')
     provider = make_provider(settings, CallGate(settings))
     session = Session('친구랑 같이 쓰는 재밌는 웹 서비스', provider, settings, 'compatible')

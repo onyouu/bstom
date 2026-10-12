@@ -62,9 +62,9 @@ async def index():
 @app.get("/api/config")
 async def config():
     return {"name": "Bstom", "default_mode": settings.bstom_mode,
-            "live_available": bool(settings.active_api_key), "model": settings.llm_model,
+            "live_available": settings.live_available, "model": settings.llm_model,
             "provider": settings.llm_provider,
-            "provider_name": "Gemini" if settings.llm_provider == "gemini" else "OpenAI 호환 API",
+            "provider_name": settings.provider_name,
             "limits": {"calls": settings.session_max_calls, "messages": settings.session_max_messages,
                        "seconds": settings.session_max_seconds, "rpm": settings.api_requests_per_minute}}
 
@@ -90,7 +90,7 @@ async def create_session(body: NewSession):
         raise HTTPException(422, "topic_required")
     if sum(session.status != "ended" for session in sessions.values()) >= 4:
         raise HTTPException(429, "active_session_limit")
-    if body.mode == "compatible" and not settings.active_api_key:
+    if body.mode == "compatible" and not settings.live_available:
         raise HTTPException(400, "api_key_not_configured")
     # Keep only bounded ended sessions in memory; their histories remain on disk.
     for key in list(sessions):

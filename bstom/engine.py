@@ -123,7 +123,8 @@ class Session:
             last_revision = self.revision
             epoch = self.epoch
             view = self.view(reflection)
-            self.state(agent, State.THINKING, "agent_thinking", reflection=reflection)
+            self.state(agent, State.THINKING, "agent_thinking", reflection=reflection,
+                       typing=self.settings.llm_provider == "ollama" and self.settings.ollama_fast_mode)
             try:
                 decision = await self.provider.decide(agent, view, self)
             except BudgetExceeded:
@@ -145,6 +146,7 @@ class Session:
             if self.status != "running" or epoch != self.epoch:
                 self.state(agent, State.LISTENING)
                 continue
+            last_revision = view.pop("_observed_revision", last_revision)
             # A decision about much older context is discarded and re-observed.
             if self.revision - last_revision > 2:
                 self.state(agent, State.LISTENING)
@@ -184,10 +186,10 @@ class Session:
             if self.settings.session_max_calls and self.calls >= self.settings.session_max_calls and not self.active_agent:
                 asyncio.create_task(self.end("call_budget"))
                 return
-            if len(self.messages) >= self.settings.session_max_messages and not self.active_agent:
+            if self.settings.session_max_messages and len(self.messages) >= self.settings.session_max_messages and not self.active_agent:
                 asyncio.create_task(self.end("message_budget"))
                 return
-            if time.monotonic() - self.started >= self.settings.session_max_seconds:
+            if self.settings.session_max_seconds and time.monotonic() - self.started >= self.settings.session_max_seconds:
                 asyncio.create_task(self.end("time_budget"))
                 return
             self.discard_stale()

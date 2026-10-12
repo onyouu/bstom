@@ -11,7 +11,7 @@ def test_rest_ws_controls_and_history(tmp_path, monkeypatch):
         assert config['name'] == 'Bstom'
         assert 'llm_api_key' not in config
         assert 'gemini_api_key' not in config
-        assert config['provider'] in ('gemini', 'compatible')
+        assert config['provider'] in ('gemini', 'compatible', 'ollama')
         assert client.post('/api/sessions', json={'topic':' ', 'mode':'mock'}).status_code == 422
         created = client.post('/api/sessions', json={'topic':'작은 실험', 'mode':'mock'})
         assert created.status_code == 201

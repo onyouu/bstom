@@ -4,7 +4,46 @@
 
 나루·솔·미오가 각자의 비동기 루프, 기억, 관심사와 발언 의지를 가지고 대화를 관찰합니다. 사용자는 넓은 주제를 던진 뒤 지켜보거나, 언제든 질문·농담·의견으로 끼어들 수 있습니다.
 
-## 빠른 실행
+## 로컬 데스크톱 실행
+
+브라우저 없이 Python/Tk 전용 창에서 대화합니다. 판단과 발언 생성은 설치된 Ollama의 **다운로드한 로컬 모델**만 사용합니다. API 키·외부 사용료·분당 요청 제한이 없으며 데스크톱 모드의 호출·발언 수·시간 제한과 인위적 채팅 간격도 꺼져 있습니다. 속도는 PC의 GPU와 메모리에 따릅니다.
+
+1. [Ollama](https://ollama.com/download/windows)를 설치하고 실행합니다.
+2. 모델을 받습니다: `ollama pull qwen2.5:3b`.
+3. 이 폴더의 **Bstom.cmd**를 더블클릭합니다. 또는 `run-desktop.ps1`을 실행합니다.
+4. 주제를 적고 테이블을 엽니다. 내 발언, 입력 중 표시, 일시정지·재개·종료, 자동 기록 저장과 기록 조회를 사용할 수 있습니다.
+
+기존 Python 환경이 준비돼 있으면 다음 명령도 가능합니다:
+
+```powershell
+.\.venv\Scripts\python.exe start_desktop.py
+```
+
+처음 모델을 불러올 때는 시간이 더 걸립니다. 닫기 버튼은 진행 중인 생성을 취소하고 기록을 저장합니다. 대화는 기존과 같이 `data/`에 저장하며 키와 실제 기록은 공개 저장소에 올리지 않습니다. Linux에서는 Tk 지원 패키지(보통 `python3-tk`)와 그래픽 화면이 필요합니다.
+
+작은 GPU에서는 모델을 한 번에 하나씩 실행합니다. 세 에이전트의 비동기 루프·기억·관심·발언 판단은 독립적이며 모델 가중치만 공유합니다. 로컬 빠른 모드는 하나의 구조화된 응답에서 개인적인 판단과 실제 할 말을 함께 준비하고, 중재에서 선택된 발언만 공개합니다. 사용자 개입 전 준비된 말은 폐기합니다. GPU 대기 후에는 최신 대화 문맥을 다시 읽습니다.
+
+기존 웹 디버그 화면도 다음 설정으로 같은 로컬 엔진을 사용할 수 있습니다:
+
+```dotenv
+BSTOM_MODE=compatible
+LLM_PROVIDER=ollama
+LLM_BASE_URL=http://127.0.0.1:11434
+LLM_MODEL=qwen2.5:3b
+OLLAMA_CONTEXT_LENGTH=2048
+OLLAMA_FAST_MODE=true
+API_MAX_CONCURRENCY=1
+API_REQUESTS_PER_MINUTE=0
+API_TOKENS_PER_MINUTE=0
+SESSION_MAX_CALLS=0
+SESSION_MAX_MESSAGES=0
+SESSION_MAX_SECONDS=0
+TURN_PAUSE_SECONDS=0
+```
+
+로컬 모드에서는 외부 주소와 `cloud` 모델을 거부하고 API 키를 전송하지 않습니다. 모델 다운로드에는 인터넷이 필요하지만 다운로드 후 대화는 이 PC에서 처리합니다. 공급자를 클라우드로 자동 전환하지 않습니다.
+
+## 웹 디버그 화면 실행
 
 Python **3.11 이상**이 필요합니다. 기본 설정은 API를 사용하지 않는 Mock 모드입니다.
 
@@ -80,6 +119,7 @@ LLM_API_KEY=여기에_본인_키를_로컬에서만_입력
 | `bstom/pacing.py` | 응답 생성과 완성된 채팅 사이의 표시 간격을 분리 |
 | `bstom/prompts.py` | 대화 스타일, 사적인 판단과 실제 발언 분리, 유한한 문맥 구성 |
 | `bstom/app.py` | REST, WebSocket, 로컬 기록 조회 |
+| `bstom/desktop.py` | 네이티브 창, 비동기 엔진 연결, 입력과 제어, 기록 조회 |
 | `static/` | 엔진과 분리된 단순한 한국어 웹 디버그 화면 |
 
 에이전트는 새 문맥이나 재평가 시점에 각자 `desire`, `relevance`, `novelty`, `interrupt`, `thought`, `interest`, `memory`, `kind`를 판단합니다. 발언 의지가 낮으면 듣습니다. 준비 중인 생각은 개인 상태이며, 실제 대화 기록에 이미 발언한 것처럼 넣지 않습니다.
@@ -104,8 +144,8 @@ LLM_API_KEY=여기에_본인_키를_로컬에서만_입력
 | `API_REQUESTS_PER_MINUTE` | 0 | 0이면 앱의 분당 요청 대기 없음; 양수로 선택적 제한 |
 | `API_TOKENS_PER_MINUTE` | 0 | 0이면 앱의 토큰 사용량 대기 없음; 양수로 선택적 제한 |
 | `SESSION_MAX_CALLS` | 0 | 0이면 호출 횟수 제한 없음; 양수이면 실패 포함 호출 예산 |
-| `SESSION_MAX_MESSAGES` | 40 | 사용자 발언과 AI 발언을 합친 최대 메시지 수 |
-| `SESSION_MAX_SECONDS` | 900 | 일시정지 시간을 포함하는 세션 수명 |
+| `SESSION_MAX_MESSAGES` | 40 | 최대 메시지 수; 0이면 무제한 |
+| `SESSION_MAX_SECONDS` | 900 | 일시정지를 포함하는 세션 수명; 0이면 무제한 |
 | `MAX_SPEECH_CHARS` | 360 | 최대 AI 발언 길이 |
 | `MAX_OUTPUT_TOKENS` | 512 | 각 API 요청의 최대 출력 토큰 |
 | `REEVALUATE_SECONDS` | 12 | 문맥 변화가 없을 때 안전하게 다시 생각하는 주기 |

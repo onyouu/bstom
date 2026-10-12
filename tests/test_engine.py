@@ -56,7 +56,8 @@ async def test_autonomy_order_drift_and_recall(tmp_path):
     session = Session("생명과학", MockLLM(cfg), cfg)
     await session.start()
     try:
-        await until(lambda: len([m for m in session.messages if m.finished]) >= 13)
+        # Verify conversation behavior, not wall-clock speed on a busy laptop.
+        await until(lambda: len([m for m in session.messages if m.finished]) >= 13, timeout=8)
         messages = [m for m in session.messages if m.finished]
         order = [m.speaker for m in messages]
         assert len(set(order)) == 3
