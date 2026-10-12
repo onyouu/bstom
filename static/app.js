@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-const states = {LISTENING:'듣는 중',THINKING:'생각 중',WANTS_TO_SPEAK:'말이 떠올랐어요',SPEAKING:'말하는 중',INTERRUPTED:'잠깐 멈춤',IDLE:'쉬는 중'};
+const states = {LISTENING:'듣는 중',THINKING:'생각 중',WANTS_TO_SPEAK:'말이 떠올랐어요',SPEAKING:'말하는 중',INTERRUPTED:'듣는 중',IDLE:'쉬는 중'};
 const labels = {running:'대화 중',paused:'잠깐 쉬는 중',ended:'마친 대화',archived:'저장된 대화'};
 let current = null, socket = null, reconnect = null, generation = 0, lastSeq = 0;
 function node(tag, cls, text) { const n=document.createElement(tag); if(cls)n.className=cls; if(text!==undefined)n.textContent=text; return n; }
@@ -26,10 +26,10 @@ function renderAgents() {
 }
 function renderMessages() {
   const list=$('messages'), atBottom=list.scrollTop+list.clientHeight>=list.scrollHeight-90;
-  list.replaceChildren(...current.messages.map(m=>{
+  list.replaceChildren(...current.messages.filter(m=>m.text).map(m=>{
     const row=node('div','message'+(m.speaker==='user'?' user':''));row.dataset.messageId=m.id;
-    const author=node('div','author',m.name);if(m.interrupted)author.append(node('span','tag','말하다 멈춤'));
-    row.append(author,node('div','text',m.text || '…'));return row;
+    const author=node('div','author',m.name);
+    row.append(author,node('div','text',m.text));return row;
   }));if(atBottom)list.scrollTop=list.scrollHeight;
 }
 function addEvent(event) {

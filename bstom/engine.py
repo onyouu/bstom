@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from .llm import BudgetExceeded, ProviderError
 from .models import Agent, Message, Request, State
+from .pacing import paced_stream
 
 
 class Session:
@@ -29,6 +30,8 @@ class Session:
         self.active_agent = None
         self.interrupt_reason = ""
         self.interruption_chain = 0
+        self.last_finished_at = -1e9
+        self.last_finished_text = ""
         self.control = asyncio.Lock()
         self.started = time.monotonic()
         directory = Path(settings.data_dir)
@@ -95,6 +98,10 @@ class Session:
         last_revision = -1
         while self.status == "running":
             if self.active_agent is agent or agent.id in self.requests:
+                await asyncio.sleep(0.05)
+                continue
+            if self.active_message is not None and len(self.active_message.text) < 40:
+                # Listen until there is substance, rather than judging an empty bubble.
                 await asyncio.sleep(0.05)
                 continue
             if time.monotonic() - agent.last_spoke < self.settings.speech_cooldown:
@@ -212,18 +219,22 @@ class Session:
         self.requests.pop(request.agent.id, None)
         self.active_agent = request.agent
         self.active_message = Message(request.agent.id, request.agent.name, kind=request.decision.kind)
-        self.messages.append(self.active_message)
-        self.changed()
-        self.state(request.agent, State.SPEAKING, "agent_speaking", message=self.active_message.public())
+        self.state(request.agent, State.THINKING)
         self.speech_task = asyncio.create_task(self.speak(request, self.active_message))
 
     async def speak(self, request, message):
         interrupted = False
         failed = False
         try:
-            # A free-tier pacing window can itself take 60 seconds.
-            async with asyncio.timeout(120):
-                async with aclosing(self.provider.stream(request.agent, self.view(), request.decision, self)) as stream:
+            # Allow delivery of the longest configured speech as well as network time.
+            delivery_seconds = self.settings.max_speech_chars / max(0.1, self.settings.speech_chars_per_second) if self.settings.speech_chars_per_second else 0
+            gap = self.settings.turn_pause_seconds
+            if gap:
+                gap += min(0.6, len(self.last_finished_text) / 200)
+            initial_delay = max(0, self.last_finished_at + gap - time.monotonic())
+            async with asyncio.timeout(120 + delivery_seconds * 2):
+                source = self.provider.stream(request.agent, self.view(), request.decision, self)
+                async with aclosing(paced_stream(source, self.settings, request.agent.id, initial_delay)) as stream:
                     async for chunk in stream:
                         if self.status != "running":
                             interrupted = True
@@ -231,6 +242,9 @@ class Session:
                         chunk = chunk[:max(0, self.settings.max_speech_chars - len(message.text))]
                         if not chunk:
                             break
+                        if not message.text:
+                            self.messages.append(message)
+                            self.state(request.agent, State.SPEAKING, "agent_speaking", message=message.public())
                         message.text += chunk
                         self.emit("speech_chunk", request.agent.id, message_id=message.id, text=chunk)
                         # Once there is substance, independent listeners may request interruption.
@@ -260,6 +274,8 @@ class Session:
                        message=message.public(), reason=self.interrupt_reason if interrupted else ("provider_error" if failed else "complete"))
             if not message.interrupted:
                 self.interruption_chain = 0
+                self.last_finished_at = time.monotonic()
+                self.last_finished_text = message.text
             self.active_agent = self.active_message = None
             self.changed()
             self.save()
