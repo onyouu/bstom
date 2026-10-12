@@ -23,7 +23,7 @@ async def main():
     try:
         async with asyncio.timeout(155):
             while session.status == 'running':
-                if session.active_message and len(session.active_message.text) >= 10 and not intervened:
+                if session.messages and session.active_agent and not intervened:
                     await session.user_message('갑자기 생각났는데, 그냥 쓸모없어도 웃긴 게 좋겠어')
                     intervened = True
                 completed = [m for m in session.messages if m.finished and not m.interrupted and m.speaker != 'user' and m.text]
@@ -36,7 +36,7 @@ async def main():
         await session.end('live_smoke_complete')
         await provider.close()
     report = {'provider':settings.llm_provider,'model':settings.llm_model,'calls':session.calls,'user_intervened':intervened,
-              'interrupted':any(m.interrupted and m.text for m in session.messages),
+              'interrupted':any(e['type']=='agent_interrupted' and e['data']['reason']=='user' for e in session.events),
               'speakers':list({m.speaker for m in session.messages if m.speaker!='user' and m.text}),
               'completed_ai_messages':len([m for m in session.messages if m.speaker!='user' and m.text and m.finished and not m.interrupted]),
               'errors':[e['data'] for e in session.events if e['type']=='provider_error'],

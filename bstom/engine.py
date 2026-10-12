@@ -226,13 +226,11 @@ class Session:
         interrupted = False
         failed = False
         try:
-            # Allow delivery of the longest configured speech as well as network time.
-            delivery_seconds = self.settings.max_speech_chars / max(0.1, self.settings.speech_chars_per_second) if self.settings.speech_chars_per_second else 0
             gap = self.settings.turn_pause_seconds
             if gap:
-                gap += min(0.6, len(self.last_finished_text) / 200)
+                gap += min(6, len(self.last_finished_text) / 30)
             initial_delay = max(0, self.last_finished_at + gap - time.monotonic())
-            async with asyncio.timeout(120 + delivery_seconds * 2):
+            async with asyncio.timeout(120 + gap):
                 source = self.provider.stream(request.agent, self.view(), request.decision, self)
                 async with aclosing(paced_stream(source, self.settings, request.agent.id, initial_delay)) as stream:
                     async for chunk in stream:
@@ -247,7 +245,7 @@ class Session:
                             self.state(request.agent, State.SPEAKING, "agent_speaking", message=message.public())
                         message.text += chunk
                         self.emit("speech_chunk", request.agent.id, message_id=message.id, text=chunk)
-                        # Once there is substance, independent listeners may request interruption.
+                        # Only published text belongs to the shared conversation.
                         if len(message.text) >= 40 and len(message.text) - len(chunk) < 40:
                             self.changed()
                         if len(message.text) >= self.settings.max_speech_chars:
@@ -320,6 +318,8 @@ class Session:
             message = Message("user", "나", text, finished=True)
             self.messages.append(message)
             self.emit("user_spoke", "user", message=message.public())
+            self.last_finished_at = time.monotonic()
+            self.last_finished_text = text
             self.changed()
             self.save()
 

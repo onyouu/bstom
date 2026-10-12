@@ -13,7 +13,7 @@ def config(tmp_path, **kwargs):
     return Settings(_env_file=None, data_dir=str(tmp_path), bstom_mode="mock", llm_api_key="",
                     **{"reevaluate_seconds": 0.12, "speech_cooldown": 0.05,
                        "mock_chunk_delay": 0.001, "session_max_calls": 180,
-                       "speech_chars_per_second": 0, "turn_pause_seconds": 0, **kwargs})
+                       "turn_pause_seconds": 0, **kwargs})
 
 
 async def until(predicate, timeout=4):
@@ -77,30 +77,32 @@ async def test_collision_selects_one_speaker(tmp_path):
         await until(lambda: any(e["type"] == "arbitration" for e in session.events))
         arbitration = next(e for e in session.events if e["type"] == "arbitration")
         assert len(arbitration["data"]["candidates"]) == 3
-        await until(lambda: sum(a.state == State.SPEAKING for a in session.agents) == 1)
         await until(lambda: provider.open_streams == 1)
-        assert provider.open_streams == 1
+        assert session.active_agent is not None and provider.open_streams == 1
+        assert not session.messages  # No empty bubble during generation.
     finally:
         await session.end()
     assert provider.open_streams == 0
 
 
 @pytest.mark.asyncio
-async def test_user_interrupt_preserves_partial_and_priority(tmp_path):
+async def test_user_interrupt_cancels_generation_and_has_priority(tmp_path):
     provider = Controlled()
     session = Session("테이블", provider, config(tmp_path))
     await session.start()
     try:
-        await until(lambda: session.active_message and len(session.active_message.text) > 10)
-        partial = session.active_message
+        await until(lambda: provider.open_streams == 1)
+        pending = session.active_message
         await session.user_message("농담인데 식물이 출석 체크하면 어떨까")
-        assert partial.interrupted and partial.finished and partial.text
+        assert pending.interrupted and pending.finished and not pending.text
+        assert provider.open_streams == 0
+        assert pending not in session.messages
         assert session.messages[-1].speaker == "user"
         events = list(session.events)
         cut = next(i for i, e in enumerate(events) if e["type"] == "agent_interrupted")
         user = next(i for i, e in enumerate(events) if e["type"] == "user_spoke")
         assert cut < user
-        assert not any(e["type"] == "speech_chunk" and e["data"]["message_id"] == partial.id for e in events[user:])
+        assert not any(e["type"] == "speech_chunk" and e["data"]["message_id"] == pending.id for e in events[user:])
         await until(lambda: any(v["recent"] and v["recent"][-1]["speaker"] == "user" for _, v in provider.views))
     finally:
         await session.end()
@@ -135,13 +137,16 @@ async def test_mock_has_no_periodic_forced_low_desire(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_agent_interrupt(tmp_path):
+async def test_competing_agents_wait_for_complete_message(tmp_path):
     provider = Controlled(interrupt=True)
     session = Session("끼어들기", provider, config(tmp_path, speech_cooldown=0.15))
     await session.start()
     try:
-        await until(lambda: any(e["type"] == "agent_interrupted" and e["data"]["reason"].startswith("agent:") for e in session.events))
-        assert any(m.interrupted and m.text for m in session.messages)
+        await until(lambda: len(session.messages) >= 3)
+        assert len({m.speaker for m in session.messages}) >= 2
+        assert all(m.finished and not m.interrupted for m in session.messages)
+        chunks = [e for e in session.events if e["type"] == "speech_chunk"]
+        assert len(chunks) == len(session.messages)
     finally:
         await session.end()
 
@@ -151,7 +156,7 @@ async def test_pause_resume_and_end_cancel_all_work(tmp_path):
     provider = Controlled()
     session = Session("제어", provider, config(tmp_path))
     await session.start()
-    await until(lambda: session.active_message and session.active_message.text)
+    await until(lambda: provider.open_streams == 1)
     await session.pause()
     seq = session.seq
     assert not session.tasks and provider.open_streams == 0
@@ -310,28 +315,27 @@ class Burst(Controlled):
 @pytest.mark.asyncio
 async def test_buffered_generation_and_user_cut_discard_unseen_text(tmp_path):
     provider = Burst()
-    session = Session("읽는 속도", provider, config(tmp_path, speech_chars_per_second=30))
+    session = Session("채팅 간격", provider, config(tmp_path, turn_pause_seconds=0.2))
     session.status = "running"
+    session.last_finished_at = time.monotonic()
     session.begin_speech(Request(session.agents[0], decision(), 0, 0))
     try:
-        await until(lambda: session.active_message and session.active_message.text)
-        assert provider.generated.is_set() and provider.open_streams == 0
+        await until(provider.generated.is_set)
+        assert provider.open_streams == 0
         message = session.active_message
-        visible = message.text
-        assert 0 < len(visible) < len(provider.text)
-        assert session.view()["recent"][-1]["text"] == visible
+        assert not message.text and not session.view()["recent"]
         await session.user_message("잠깐, 다른 생각이 있어")
-        assert message.interrupted and message.text == visible
-        await asyncio.sleep(0.15)
-        assert message.text == visible
-        assert session.messages[-1].speaker == "user"
+        assert message.interrupted and not message.text
+        await asyncio.sleep(0.25)
+        assert len(session.messages) == 1 and session.messages[0].speaker == "user"
+        assert not any(e["type"] == "speech_chunk" for e in session.events)
         assert not any(t.get_name().startswith("speech-buffer:") and not t.done() for t in asyncio.all_tasks())
     finally:
         await session.end()
 
 
 @pytest.mark.asyncio
-async def test_turn_breath_generates_ahead_without_empty_transcript(tmp_path):
+async def test_message_gap_generates_ahead_and_delivers_whole_bubble(tmp_path):
     provider = Burst()
     session = Session("발언 사이 호흡", provider, config(tmp_path, turn_pause_seconds=0.15))
     session.status = "running"
@@ -344,18 +348,61 @@ async def test_turn_breath_generates_ahead_without_empty_transcript(tmp_path):
         speaking = next(e for e in session.events if e["type"] == "agent_speaking")
         assert speaking["timestamp"] - list(session.events)[0]["timestamp"] >= 0.12
         assert session.messages[0].text == provider.text
+        chunks = [e for e in session.events if e["type"] == "speech_chunk"]
+        assert len(chunks) == 1 and chunks[0]["data"]["text"] == provider.text
+        finished = next(e for e in session.events if e["type"] == "agent_finished")
+        assert finished["timestamp"] - chunks[0]["timestamp"] < 0.05
     finally:
         await session.end()
 
 
 @pytest.mark.asyncio
-async def test_buffered_error_preserves_visible_prefix_and_closes_producer(tmp_path):
+async def test_buffered_error_discards_incomplete_bubble_and_closes_producer(tmp_path):
     provider = Burst(error=True)
     session = Session("생성 오류", provider, config(tmp_path))
     session.status = "running"
     session.begin_speech(Request(session.agents[0], decision(), 0, 0))
     await until(lambda: session.active_message is None)
-    assert session.messages[0].text == provider.text and session.messages[0].interrupted
+    assert not session.messages
+    assert not any(e["type"] == "speech_chunk" for e in session.events)
     assert any(e["type"] == "provider_error" and e["data"]["code"] == "test_broken_stream" for e in session.events)
     assert provider.open_streams == 0
     await session.end()
+
+
+@pytest.mark.asyncio
+async def test_gap_is_between_messages_and_first_bubble_is_immediate(tmp_path):
+    provider = Burst()
+    provider.text = "한 줄"
+    session = Session("두 채팅", provider, config(tmp_path, turn_pause_seconds=0.12))
+    session.status = "running"
+    try:
+        session.begin_speech(Request(session.agents[0], decision(), 0, 0))
+        await until(lambda: session.active_message is None)
+        first = session.messages[0]
+        first_chunk = next(e for e in session.events if e["type"] == "speech_chunk")
+        assert first_chunk["timestamp"] - list(session.events)[0]["timestamp"] < 0.1
+        session.begin_speech(Request(session.agents[1], decision(), session.revision, 0))
+        await until(lambda: session.active_message is None)
+        chunks = [e for e in session.events if e["type"] == "speech_chunk"]
+        assert len(chunks) == 2 and all(e["data"]["text"] == provider.text for e in chunks)
+        assert chunks[1]["timestamp"] - chunks[0]["timestamp"] >= 0.20
+        await session.user_message("다른 생각도 있어")
+        assert first.text == provider.text and first.finished and not first.interrupted
+    finally:
+        await session.end()
+
+
+@pytest.mark.asyncio
+async def test_slow_generation_counts_toward_message_gap(tmp_path):
+    from bstom.pacing import paced_stream
+
+    async def slow_source():
+        await asyncio.sleep(0.16)
+        yield "완성된 "
+        yield "채팅"
+
+    started = time.monotonic()
+    parts = [text async for text in paced_stream(slow_source(), config(tmp_path), "naru", 0.12)]
+    assert parts == ["완성된 채팅"]
+    assert time.monotonic() - started < 0.25
